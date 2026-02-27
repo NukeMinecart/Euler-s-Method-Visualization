@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Euler Method Explorer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,600;1,300&family=Bebas+Neue&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#07080d;--panel:#0d0f18;--border:#252840;--accent:#00ffa3;--accent2:#ff6b35;--text:#9ba3bf;--bright:#dde3f5;--dim:#1e2235;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+  header{display:flex;align-items:center;gap:10px;padding:0 14px;height:44px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0}
+  header h1{font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:.15em;color:var(--accent);white-space:nowrap}
+  .eq-bar{flex:1;display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 10px;min-width:160px}
+  .eq-bar label{font-size:.6rem;color:#444;white-space:nowrap}
+  #eqInput{flex:1;background:transparent;border:none;outline:none;color:var(--bright);font-family:'IBM Plex Mono',monospace;font-size:.8rem;caret-color:var(--accent);min-width:60px}
+  #eqError{font-size:.56rem;color:var(--accent2);white-space:nowrap}
+  .presets{display:flex;gap:5px;flex-shrink:0}
+  .pbtn{background:var(--dim);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:.54rem;padding:3px 7px;border-radius:3px;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap}
+  .pbtn:hover{background:var(--accent);color:#000}
+
+  .topbar{display:flex;align-items:stretch;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;height:72px;}
+  .topbar::-webkit-scrollbar{display:none}
+  .tgrp{display:flex;flex-direction:column;justify-content:center;padding:5px 12px;border-right:1px solid var(--border);gap:5px;flex-shrink:0;}
+  .grp-title{font-size:.46rem;letter-spacing:.14em;text-transform:uppercase;color:#2e3450;white-space:nowrap;margin-bottom:1px}
+  .crow{display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .clbl{font-size:.57rem;color:var(--text);white-space:nowrap;flex-shrink:0;min-width:52px}
+  .clbl-s{min-width:36px}
+  .cval{font-size:.57rem;color:var(--accent);min-width:28px;text-align:right;flex-shrink:0}
+
+  input[type=range]{-webkit-appearance:none;width:74px;height:2px;background:var(--dim);outline:none;border-radius:2px;cursor:pointer;flex-shrink:0;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:9px;height:9px;background:var(--accent);border-radius:50%;cursor:pointer;transition:transform .1s;}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.5)}
+
+  .ninput{width:56px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--bright);font-family:'IBM Plex Mono',monospace;font-size:.68rem;padding:2px 5px;outline:none;-moz-appearance:textfield;flex-shrink:0;}
+  .ninput::-webkit-inner-spin-button{-webkit-appearance:none}
+  .ninput:focus{border-color:var(--accent)}
+  .ninput-s{width:44px}
+
+  .tog{position:relative;width:26px;height:14px;flex-shrink:0}
+  .tog input{opacity:0;width:0;height:0}
+  .tog-sl{position:absolute;inset:0;background:var(--dim);border-radius:7px;cursor:pointer;transition:background .2s}
+  .tog-sl::before{content:'';position:absolute;width:8px;height:8px;left:3px;top:3px;background:#444;border-radius:50%;transition:transform .2s,background .2s}
+  .tog input:checked+.tog-sl{background:#082a1a}
+  .tog input:checked+.tog-sl::before{transform:translateX(12px);background:var(--accent)}
+
+  input[type=color]{width:22px;height:16px;border:1px solid var(--border);border-radius:3px;background:none;padding:0;cursor:pointer;flex-shrink:0}
+
+  .abtn{background:var(--dim);border:1px solid var(--border);color:var(--bright);font-family:'IBM Plex Mono',monospace;font-size:.6rem;padding:5px 10px;border-radius:3px;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap;flex-shrink:0}
+  .abtn:hover{background:#1e2845;border-color:#3a4070}
+  .abtn.active{background:#0a2e1c;border-color:var(--accent);color:var(--accent)}
+  .abtn.danger{background:#2a0a0a;border-color:#7a1818;color:#cc4444}
+  .abtn.danger:hover{background:#aa2222;color:#fff}
+  .step-lbl{font-size:.6rem;color:#333a55;white-space:nowrap}
+  .step-lbl span{color:var(--accent)}
+
+  .workspace{flex:1;overflow:hidden;position:relative}
+  canvas{width:100%;height:100%;display:block;cursor:crosshair}
+  .info-overlay{position:absolute;bottom:10px;left:12px;font-size:.58rem;color:#2a3050;line-height:1.9;pointer-events:none;}
+  .info-overlay span{color:#4a5070}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Euler Explorer</h1>
+  <div class="eq-bar">
+    <label>dy/dx or (dx,dy)=</label>
+    <input id="eqInput" type="text" value="(-y/3, (x-y)/3)" spellcheck="false" autocomplete="off">
+    <span id="eqError"></span>
+  </div>
+  <div class="presets">
+    <button class="pbtn" onclick="setPreset('(-y/3,(x-y)/3)')">spiral</button>
+    <button class="pbtn" onclick="setPreset('(y,-x)')">orbit</button>
+    <button class="pbtn" onclick="setPreset('(1,Math.sin(x))')">sine</button>
+    <button class="pbtn" onclick="setPreset('(y-x*0.2,x+y*0.1)')">outward</button>
+    <button class="pbtn" onclick="setPreset('(Math.sin(y),Math.cos(x))')">chaotic</button>
+    <button class="pbtn" onclick="setPreset('x*y')">x·y</button>
+    <button class="pbtn" onclick="setPreset('x-y')">x−y</button>
+    <button class="pbtn" onclick="setPreset('sin(x)')">sin(x)</button>
+  </div>
+</header>
+
+<div class="topbar">
+
+  <!-- Playback -->
+  <div class="tgrp">
+    <div class="grp-title">Playback</div>
+    <div class="crow">
+      <button class="abtn" id="btnPlay" onclick="togglePlay()">▶ Play</button>
+      <button class="abtn" onclick="stepOnce()">→ Step</button>
+      <button class="abtn danger" onclick="resetAnim()">↺ Reset</button>
+    </div>
+    <div class="crow">
+      <span class="step-lbl">step <span id="stepNum">0</span> / <span id="stepMax">30</span></span>
+      &nbsp;
+      <span class="clbl clbl-s">speed</span>
+      <input type="range" id="sAnimSpeed" min="1" max="120" value="3">
+      <span class="cval" id="vAnimSpeed">3/s</span>
+    </div>
+  </div>
+
+  <!-- Start -->
+  <div class="tgrp">
+    <div class="grp-title">Start</div>
+    <div class="crow">
+      <span class="clbl clbl-s">x</span>
+      <input type="number" class="ninput ninput-s" id="nStartX" value="0" step="0.1" onchange="onStartChange()">
+    </div>
+    <div class="crow">
+      <span class="clbl clbl-s">y</span>
+      <input type="number" class="ninput ninput-s" id="nStartY" value="2" step="0.1" onchange="onStartChange()">
+    </div>
+  </div>
+
+  <!-- Euler Path -->
+  <div class="tgrp">
+    <div class="grp-title">Euler Path</div>
+    <div class="crow">
+      <span class="clbl">Steps</span>
+      <input type="range" id="sSteps" min="1" max="500" value="30">
+      <span class="cval" id="vSteps">30</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Delta</span>
+      <input type="range" id="sDelta" min="1" max="150" value="25">
+      <span class="cval" id="vDelta">0.25</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Fade</span>
+      <input type="range" id="sFade" min="1" max="60" value="12">
+      <span class="cval" id="vFade">0.12</span>
+    </div>
+  </div>
+
+  <!-- Arrow Style -->
+  <div class="tgrp">
+    <div class="grp-title">Arrow Style</div>
+    <div class="crow">
+      <span class="clbl">Width</span>
+      <input type="range" id="sAW" min="5" max="50" value="15">
+      <span class="cval" id="vAW">1.5</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Tip</span>
+      <input type="range" id="sTip" min="2" max="20" value="6">
+      <span class="cval" id="vTip">6</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Color</span>
+      <input type="color" id="cArrow" value="#ffffff">
+      &nbsp;
+      <label class="tog"><input type="checkbox" id="tNorm" checked><span class="tog-sl"></span></label>
+      <span style="font-size:.54rem;color:var(--text)">norm</span>
+    </div>
+  </div>
+
+  <!-- Slope Field -->
+  <div class="tgrp">
+    <div class="grp-title">Slope Field</div>
+    <div class="crow">
+      <label class="tog"><input type="checkbox" id="tField" checked><span class="tog-sl"></span></label>
+      <span style="font-size:.54rem;color:var(--text)">show</span>
+      &nbsp;
+      <label class="tog"><input type="checkbox" id="tMagColor" checked><span class="tog-sl"></span></label>
+      <span style="font-size:.54rem;color:var(--text)">mag</span>
+      &nbsp;
+      <label class="tog"><input type="checkbox" id="tFieldArrows" checked><span class="tog-sl"></span></label>
+      <span style="font-size:.54rem;color:var(--text)">tips</span>
+      &nbsp;
+      <input type="color" id="cField" value="#4488ff">
+    </div>
+    <div class="crow">
+      <span class="clbl">Spacing</span>
+      <input type="range" id="sDensity" min="10" max="400" value="100">
+      <span class="cval" id="vDensity">1.00</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Length</span>
+      <input type="range" id="sFLen" min="5" max="120" value="40">
+      <span class="cval" id="vFLen">0.40</span>
+    </div>
+  </div>
+
+  <!-- Field Style -->
+  <div class="tgrp">
+    <div class="grp-title">Field Style</div>
+    <div class="crow">
+      <span class="clbl">Opacity</span>
+      <input type="range" id="sFOp" min="5" max="100" value="60">
+      <span class="cval" id="vFOp">0.60</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Line w.</span>
+      <input type="range" id="sFLW" min="5" max="40" value="12">
+      <span class="cval" id="vFLW">1.2</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Draw rate</span>
+      <input type="range" id="sFRate" min="5" max="200" value="200">
+      <span class="cval" id="vFRate">200</span>
+    </div>
+  </div>
+
+  <!-- Stream -->
+  <div class="tgrp">
+    <div class="grp-title">Stream</div>
+    <div class="crow">
+      <label class="tog"><input type="checkbox" id="tStream" checked><span class="tog-sl"></span></label>
+      <span style="font-size:.54rem;color:var(--text)">show</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Count</span>
+      <input type="range" id="sStreamCount" min="10" max="400" value="120">
+      <span class="cval" id="vStreamCount">120</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Speed</span>
+      <input type="range" id="sStreamSpeed" min="1" max="100" value="18">
+      <span class="cval" id="vStreamSpeed">0.018</span>
+    </div>
+  </div>
+
+  <!-- Gradient Mode -->
+  <div class="tgrp">
+    <div class="grp-title">Gradient</div>
+    <div class="crow">
+      <label class="tog"><input type="checkbox" id="tGradient"><span class="tog-sl"></span></label>
+      <span style="font-size:.54rem;color:var(--text)">show</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Opacity</span>
+      <input type="range" id="sGradOp" min="1" max="100" value="40">
+      <span class="cval" id="vGradOp">0.40</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Motion</span>
+      <input type="range" id="sGradMotion" min="0" max="100" value="30">
+      <span class="cval" id="vGradMotion">0.30</span>
+    </div>
+  </div>
+
+  <!-- View -->
+  <div class="tgrp">
+    <div class="grp-title">View</div>
+    <div class="crow">
+      <label class="tog"><input type="checkbox" id="tGrid" checked><span class="tog-sl"></span></label>
+      <span style="font-size:.54rem;color:var(--text)">grid</span>
+    </div>
+    <div class="crow">
+      <label class="tog"><input type="checkbox" id="tAxes" checked><span class="tog-sl"></span></label>
+      <span style="font-size:.54rem;color:var(--text)">axes</span>
+    </div>
+    <div class="crow">
+      <label class="tog"><input type="checkbox" id="tLabels" checked><span class="tog-sl"></span></label>
+      <span style="font-size:.54rem;color:var(--text)">labels</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="workspace">
+  <canvas id="c"></canvas>
+  <div class="info-overlay">
+    pos (<span id="px">0.000</span>, <span id="py">2.000</span>) &nbsp; zoom <span id="pz">60</span>px/u
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// ── Defaults ──
+const DEFAULTS = {
+  steps:30, delta:0.25, animSpeed:3,
+  arrowWidth:1.5, tipSize:6, fadeSpeed:0.12,
+  arrowColor:'#ffffff', normalize:true,
+  showField:true, fieldRate:200,
+  density:1.0, fieldLen:0.40, fieldOpacity:0.60,
+  fieldLineWidth:1.2, magColor:true, fieldArrows:true, fieldColor:'#4488ff',
+  showGrid:true, showAxes:true, showLabels:true,
+  showStream:true, streamCount:120, streamSpeed:0.018,
+  showGradient:false, gradientOpacity:0.40, gradientMotion:0.30,
+  equation:'(-y/3,(x-y)/3)'
+};
+
+// ── Persistent settings ──
+function loadCfg() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('euler_cfg') || '{}');
+    return Object.assign({}, DEFAULTS, saved);
+  } catch(e) { return Object.assign({}, DEFAULTS); }
+}
+function saveCfg() {
+  try { localStorage.setItem('euler_cfg', JSON.stringify(cfg)); } catch(e){}
+}
+
+let cfg = loadCfg();
+
+// ── State ──
+let pos = { x: 0, y: 2 };
+let startPos = { x: 0, y: 2 };
+let zoom = 60, camX = 0, camY = 0;
+let draggingDot = false, panning = false, panStart = null, camStart = null;
+let animStep = 0, playing = false, animRaf = null, lastStepTime = 0;
+
+// Field
+let fieldItems = [], fieldDrawn = 0, fieldDirty = true;
+let fieldCanvas = null, fieldCtx = null, fieldRaf = null;
+
+// Stream
+let streamCanvas = null, streamCtx = null;
+let streamParticles = [];
+let streamRaf = null;
+
+// Gradient
+let gradCanvas = null, gradCtx = null;
+let gradTime = 0;
+let gradRaf = null;
+let gradItems = []; // precomputed magnitude grid
+
+// ── Equation ──
+let funcFn = null;
+
+function preprocessExpr(s) {
+  return s
+    .replace(/\bln\s*\(/g,'log(')
+    .replace(/\blog10\s*\(/g,'log10(')
+    .replace(/\blog2\s*\(/g,'log2(')
+    .replace(/\blog\s*\(/g,'log10(')
+    .replace(/\bpi\b/gi,'PI')
+    .replace(/\be\b(?![a-zA-Z_\d])/g,'E')
+    .replace(/\b(sin|cos|tan|asin|acos|atan2|atan|sqrt|abs|exp|floor|ceil|round|sign|sinh|cosh|tanh|hypot|cbrt|pow|min|max)\s*\(/g,'$1(');
+}
+
+function compileEq(src) {
+  const errEl = document.getElementById('eqError');
+  const mathCtx = '{sin,cos,tan,asin,acos,atan,atan2,sqrt,abs,exp,log,log2,log10,pow,floor,ceil,round,sign,min,max,PI,E,LN2,LN10,hypot,cbrt,sinh,cosh,tanh}';
+  try {
+    const isVector = /^\s*\(/.test(src);
+    if (isVector) {
+      const m = src.match(/^\s*\((.+),(.+)\)\s*$/s);
+      if (!m) throw new Error('vector format: (dx, dy)');
+      const f = new Function('x','y','Math',mathCtx,`return [+(${preprocessExpr(m[1].trim())}),+(${preprocessExpr(m[2].trim())})];`);
+      f(0,0,Math,Math);
+      funcFn = (x,y) => { try { const r=f(x,y,Math,Math); return {dx:isFinite(r[0])?r[0]:0,dy:isFinite(r[1])?r[1]:0}; } catch(e){return{dx:0,dy:0};} };
+    } else {
+      const f = new Function('x','y','Math',mathCtx,`return +(${preprocessExpr(src.trim())});`);
+      f(0,0,Math,Math);
+      funcFn = (x,y) => {
+        try {
+          const slope = f(x,y,Math,Math);
+          if (!isFinite(slope)) return {dx:0, dy:slope<0?-1:1};
+          return {dx:1, dy:slope};
+        } catch(e){return{dx:0,dy:0};}
+      };
+    }
+    errEl.textContent = '';
+    fieldDirty = true;
+    scheduleFieldBuild();
+    buildGradItems();
+  } catch(e) { errEl.textContent = '⚠ '+e.message; }
+}
+
+function setPreset(s) {
+  document.getElementById('eqInput').value = s;
+  cfg.equation = s; saveCfg();
+  compileEq(s); resetAnim();
+}
+
+document.getElementById('eqInput').addEventListener('input', e => {
+  cfg.equation = e.target.value; saveCfg();
+  compileEq(e.target.value);
+});
+
+function vfield(x,y) { return funcFn ? funcFn(x,y) : {dx:0,dy:0}; }
+
+// ── Transforms ──
+function w2s(wx,wy){return{sx:canvas.width/2+camX+wx*zoom,sy:canvas.height/2+camY-wy*zoom};}
+function s2w(sx,sy){return{wx:(sx-canvas.width/2-camX)/zoom,wy:-(sy-canvas.height/2-camY)/zoom};}
+
+// ── Colour ──
+function hexRgb(hex){return[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];}
+function magColor(t) {
+  const t2 = Math.pow(t,0.7); let r,g,b;
+  if(t2<0.5){const s=t2/0.5;r=Math.round(40+s*30);g=Math.round(80+s*160);b=Math.round(180+s*60);}
+  else{const s=(t2-0.5)/0.5;r=Math.round(70+s*185);g=Math.round(240-s*40);b=Math.round(240-s*200);}
+  return[r,g,b];
+}
+
+// ── Field build ──
+function buildFieldItems() {
+  if (!canvas.width) return;
+  const sp = cfg.density;
+  const W = canvas.width, H = canvas.height;
+  const tl = s2w(0,0), br = s2w(W,H);
+  const ixMin=Math.floor(tl.wx/sp), ixMax=Math.ceil(br.wx/sp);
+  const iyMin=Math.floor(br.wy/sp), iyMax=Math.ceil(tl.wy/sp);
+  const items=[], mags=[];
+  for(let ix=ixMin;ix<=ixMax;ix++) for(let iy=iyMin;iy<=iyMax;iy++){
+    const wx=ix*sp, wy=iy*sp;
+    const v=vfield(wx,wy); const mag=Math.sqrt(v.dx*v.dx+v.dy*v.dy);
+    if(isFinite(mag)&&mag>0.0001){
+      const ux=v.dx/mag, uy=-v.dy/mag;
+      const sc=w2s(wx,wy);
+      items.push({sx:sc.sx,sy:sc.sy,ux,uy,mag}); mags.push(mag);
+    }
+  }
+  const maxMag=mags.length?Math.max(...mags):1;
+  for(let i=items.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[items[i],items[j]]=[items[j],items[i]];}
+  fieldItems=items.map(it=>({...it,normMag:it.mag/maxMag}));
+  fieldDrawn=0;
+  if(!fieldCanvas||fieldCanvas.width!==W||fieldCanvas.height!==H){
+    fieldCanvas=document.createElement('canvas'); fieldCanvas.width=W; fieldCanvas.height=H;
+    fieldCtx=fieldCanvas.getContext('2d');
+  } else { fieldCtx.clearRect(0,0,W,H); }
+  fieldDirty=false;
+}
+
+function drawFieldBatch() {
+  if(!cfg.showField||!fieldCtx) return;
+  const budget=cfg.fieldRate>=200?fieldItems.length:Math.max(1,Math.ceil(cfg.fieldRate/60));
+  const end=Math.min(fieldDrawn+budget,fieldItems.length);
+  const [fr,fg,fb]=hexRgb(cfg.fieldColor);
+  const halfPx=cfg.fieldLen*zoom*0.5;
+  for(let i=fieldDrawn;i<end;i++){
+    const{sx,sy,ux,uy,normMag}=fieldItems[i];
+    const x1=sx-ux*halfPx,y1=sy-uy*halfPx,x2=sx+ux*halfPx,y2=sy+uy*halfPx;
+    const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+    if(len<1) continue;
+    let r=fr,g=fg,b=fb,alpha=cfg.fieldOpacity;
+    if(cfg.magColor){[r,g,b]=magColor(normMag);alpha=cfg.fieldOpacity*(0.55+normMag*0.45);}
+    fieldCtx.globalAlpha=alpha;
+    fieldCtx.strokeStyle=`rgb(${r},${g},${b})`; fieldCtx.fillStyle=`rgb(${r},${g},${b})`;
+    fieldCtx.lineWidth=cfg.fieldLineWidth; fieldCtx.lineCap='round';
+    fieldCtx.beginPath(); fieldCtx.moveTo(x1,y1); fieldCtx.lineTo(x2,y2); fieldCtx.stroke();
+    if(cfg.fieldArrows&&len>6){
+      const ang=Math.atan2(dy,dx),t=Math.min(4,len*0.35);
+      fieldCtx.beginPath(); fieldCtx.moveTo(x2,y2);
+      fieldCtx.lineTo(x2-t*Math.cos(ang-0.45),y2-t*Math.sin(ang-0.45));
+      fieldCtx.lineTo(x2-t*Math.cos(ang+0.45),y2-t*Math.sin(ang+0.45));
+      fieldCtx.closePath(); fieldCtx.fill();
+    }
+    fieldCtx.globalAlpha=1;
+  }
+  fieldDrawn=end; draw();
+  if(fieldDrawn<fieldItems.length) fieldRaf=requestAnimationFrame(drawFieldBatch);
+}
+
+function scheduleFieldBuild() {
+  cancelAnimationFrame(fieldRaf);
+  fieldDirty=true; buildFieldItems();
+  fieldRaf=requestAnimationFrame(drawFieldBatch);
+  if(streamCtx){cancelAnimationFrame(streamRaf);initStream();streamRaf=requestAnimationFrame(tickStream);}
+}
+
+// ── Gradient ──
+const GRAD_RES = 4; // sample every N pixels
+function buildGradItems() {
+  // precomputed lazily on draw since it depends on viewport
+  gradItems = null;
+}
+
+function renderGradient() {
+  if (!cfg.showGradient || !funcFn) return;
+  const W = canvas.width, H = canvas.height;
+  if (!gradCanvas || gradCanvas.width !== W || gradCanvas.height !== H) {
+    gradCanvas = document.createElement('canvas');
+    gradCanvas.width = W; gradCanvas.height = H;
+    gradCtx = gradCanvas.getContext('2d');
+  }
+  const res = Math.max(2, Math.round(GRAD_RES));
+  const cols = Math.ceil(W / res), rows = Math.ceil(H / res);
+  const imgd = gradCtx.createImageData(W, H);
+  const d = imgd.data;
+
+  // compute mag grid
+  let maxMag = 0.0001;
+  const mags = new Float32Array(cols * rows);
+  for (let ci = 0; ci < cols; ci++) for (let ri = 0; ri < rows; ri++) {
+    const px = ci*res + res/2, py = ri*res + res/2;
+    const w = s2w(px, py);
+    // add subtle time warp for motion
+    const wobble = cfg.gradientMotion * Math.sin(gradTime * 0.8 + w.wx * 0.5 + w.wy * 0.3) * 0.15;
+    const v = vfield(w.wx + wobble, w.wy + wobble);
+    const mag = Math.sqrt(v.dx*v.dx + v.dy*v.dy);
+    mags[ci + ri*cols] = isFinite(mag) ? mag : 0;
+    if (mag > maxMag) maxMag = mag;
+  }
+
+  const op = Math.round(cfg.gradientOpacity * 255);
+  for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+    const ci = Math.min(Math.floor(px/res), cols-1);
+    const ri = Math.min(Math.floor(py/res), rows-1);
+    const t = mags[ci + ri*cols] / maxMag;
+    const [r,g,b] = magColor(t);
+    const idx = (py*W + px)*4;
+    d[idx]=r; d[idx+1]=g; d[idx+2]=b; d[idx+3]=Math.round(op*(0.4+t*0.6));
+  }
+  gradCtx.putImageData(imgd, 0, 0);
+}
+
+function tickGradient() {
+  if (!cfg.showGradient) { gradRaf = requestAnimationFrame(tickGradient); return; }
+  gradTime += 0.016;
+  renderGradient();
+  draw();
+  gradRaf = requestAnimationFrame(tickGradient);
+}
+
+// ── Stream ──
+function streamCount() {
+  // scale particle count inversely with zoom so zoomed-out has more
+  const zoomScale = Math.max(0.5, Math.min(3, 60 / zoom));
+  return Math.round(cfg.streamCount * zoomScale);
+}
+
+function randomParticle() {
+  const sx = Math.random()*canvas.width, sy = Math.random()*canvas.height;
+  const w = s2w(sx, sy);
+  return {wx:w.wx, wy:w.wy, age:Math.random()*80, life:60+Math.random()*80};
+}
+
+function initStream() {
+  const W=canvas.width, H=canvas.height;
+  if(!streamCanvas||streamCanvas.width!==W||streamCanvas.height!==H){
+    streamCanvas=document.createElement('canvas'); streamCanvas.width=W; streamCanvas.height=H;
+    streamCtx=streamCanvas.getContext('2d');
+  } else { streamCtx.clearRect(0,0,W,H); }
+  const n = streamCount();
+  streamParticles = Array.from({length:n}, randomParticle);
+}
+
+function tickStream() {
+  if(!streamCtx||!funcFn){streamRaf=requestAnimationFrame(tickStream);return;}
+  const W=canvas.width, H=canvas.height;
+  const target = streamCount();
+  // grow/shrink to target
+  while(streamParticles.length < target) streamParticles.push(randomParticle());
+  if(streamParticles.length > target) streamParticles.length = target;
+
+  if(cfg.showStream) {
+    streamCtx.globalCompositeOperation='destination-out';
+    streamCtx.fillStyle='rgba(0,0,0,0.04)';
+    streamCtx.fillRect(0,0,W,H);
+    streamCtx.globalCompositeOperation='source-over';
+
+    const speed = cfg.streamSpeed;
+    const margin = 40;
+    for(let i=0;i<streamParticles.length;i++){
+      const p=streamParticles[i]; p.age++;
+      if(p.age>p.life){streamParticles[i]=randomParticle();continue;}
+      const v=vfield(p.wx,p.wy); const mag=Math.sqrt(v.dx*v.dx+v.dy*v.dy);
+      if(!isFinite(mag)||mag<1e-6){streamParticles[i]=randomParticle();continue;}
+      const nx=p.wx+(v.dx/mag)*speed, ny=p.wy+(v.dy/mag)*speed;
+      const s1=w2s(p.wx,p.wy), s2=w2s(nx,ny);
+      if(s2.sx<-margin||s2.sx>W+margin||s2.sy<-margin||s2.sy>H+margin){streamParticles[i]=randomParticle();continue;}
+      const fade=Math.sin((p.age/p.life)*Math.PI);
+      streamCtx.globalAlpha=fade*0.35;
+      streamCtx.strokeStyle='#7090ff';
+      streamCtx.lineWidth=0.8; streamCtx.lineCap='round';
+      streamCtx.beginPath(); streamCtx.moveTo(s1.sx,s1.sy); streamCtx.lineTo(s2.sx,s2.sy); streamCtx.stroke();
+      streamCtx.globalAlpha=1;
+      p.wx=nx; p.wy=ny;
+    }
+  }
+  draw();
+  streamRaf=requestAnimationFrame(tickStream);
+}
+
+function startStream() {
+  cancelAnimationFrame(streamRaf);
+  initStream();
+  streamRaf=requestAnimationFrame(tickStream);
+}
+
+// ── Euler path ──
+function computePath(nSteps) {
+  let ex=startPos.x, ey=startPos.y; const arrows=[];
+  for(let i=0;i<nSteps;i++){
+    const v=vfield(ex,ey); const mag=Math.sqrt(v.dx*v.dx+v.dy*v.dy);
+    let ux,uy;
+    if(cfg.normalize){ux=mag>1e-6?v.dx/mag:0;uy=mag>1e-6?v.dy/mag:0;}else{ux=v.dx;uy=v.dy;}
+    const nx=ex+ux*cfg.delta, ny=ey+uy*cfg.delta;
+    arrows.push({x1:ex,y1:ey,x2:nx,y2:ny}); ex=nx; ey=ny;
+  }
+  return arrows;
+}
+
+function drawArrow(x1,y1,x2,y2,color,lw,tip) {
+  const s=w2s(x1,y1),e=w2s(x2,y2);
+  const dx=e.sx-s.sx,dy=e.sy-s.sy,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<1)return;
+  const ux=dx/len,uy=dy/len,t=Math.min(tip,len*0.72);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=lw;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(s.sx,s.sy);ctx.lineTo(e.sx-ux*t,e.sy-uy*t);ctx.stroke();
+  const ang=Math.atan2(dy,dx);
+  ctx.beginPath();ctx.moveTo(e.sx,e.sy);
+  ctx.lineTo(e.sx-t*Math.cos(ang-0.38),e.sy-t*Math.sin(ang-0.38));
+  ctx.lineTo(e.sx-t*Math.cos(ang+0.38),e.sy-t*Math.sin(ang+0.38));
+  ctx.closePath();ctx.fill();
+}
+
+// ── Main draw ──
+function draw() {
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2+camX, cy=H/2+camY;
+
+  // Gradient bg
+  if(cfg.showGradient&&gradCanvas) ctx.drawImage(gradCanvas,0,0);
+
+  // Grid
+  if(cfg.showGrid){
+    ctx.strokeStyle='#10131e';ctx.lineWidth=1;
+    for(let x=((cx%zoom)+zoom)%zoom;x<W;x+=zoom){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=((cy%zoom)+zoom)%zoom;y<H;y+=zoom){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  }
+
+  // Axes
+  if(cfg.showAxes){
+    ctx.save();
+    ctx.shadowColor='rgba(80,100,220,0.25)';ctx.shadowBlur=10;
+    ctx.strokeStyle='#4a5488';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,H);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,cy);ctx.lineTo(W,cy);ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle='#3a4070';ctx.lineWidth=1;
+    for(let i=-60;i<=60;i++){
+      if(i===0)continue;
+      const sx2=cx+i*zoom,sy2=cy-i*zoom;
+      if(sx2>0&&sx2<W){ctx.beginPath();ctx.moveTo(sx2,cy-3);ctx.lineTo(sx2,cy+3);ctx.stroke();}
+      if(sy2>0&&sy2<H){ctx.beginPath();ctx.moveTo(cx-3,sy2);ctx.lineTo(cx+3,sy2);ctx.stroke();}
+    }
+    if(cfg.showLabels){
+      ctx.font='10px IBM Plex Mono';ctx.fillStyle='#4a5280';
+      for(let i=-60;i<=60;i++){
+        if(i===0)continue;
+        const sx2=cx+i*zoom,sy2=cy-i*zoom;
+        if(sx2>16&&sx2<W-16){ctx.textAlign='center';ctx.fillText(i,sx2,cy+14);}
+        if(sy2>12&&sy2<H-12){ctx.textAlign='right';ctx.fillText(i,cx-7,sy2+4);}
+      }
+      ctx.fillStyle='#4a5280';ctx.textAlign='right';ctx.fillText('0',cx-6,cy+14);
+    }
+    ctx.font='bold 11px IBM Plex Mono';ctx.fillStyle='#5a608a';ctx.textAlign='center';
+    ctx.fillText('x',W-14,cy-8);ctx.fillText('y',cx+10,12);
+  }
+
+  if(cfg.showField&&fieldCanvas) ctx.drawImage(fieldCanvas,0,0);
+  if(cfg.showStream&&streamCanvas) ctx.drawImage(streamCanvas,0,0);
+
+  // Euler arrows (oldest first → newest on top)
+  const arrows=computePath(animStep);
+  const [ar,ag,ab]=hexRgb(cfg.arrowColor);
+  for(let i=0;i<arrows.length;i++){
+    const a=arrows[i];
+    const age=arrows.length-1-i;
+    const t=Math.min(age*cfg.fadeSpeed,1);
+    const v2=Math.round(255*(1-t*0.82));
+    const r2=Math.round(ar+(v2-ar)*t),g2=Math.round(ag+(v2-ag)*t),b2=Math.round(ab+(v2-ab)*t);
+    drawArrow(a.x1,a.y1,a.x2,a.y2,`rgb(${r2},${g2},${b2})`,cfg.arrowWidth,cfg.tipSize);
+  }
+
+  // Dot
+  const sp=w2s(startPos.x,startPos.y);
+  ctx.beginPath();ctx.arc(sp.sx,sp.sy,8,0,Math.PI*2);
+  ctx.fillStyle='#00ffa3';ctx.fill();
+  ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(sp.sx,sp.sy,14,0,Math.PI*2);
+  ctx.strokeStyle='rgba(0,255,163,0.15)';ctx.lineWidth=1;ctx.stroke();
+
+  let tipX=startPos.x,tipY=startPos.y;
+  if(arrows.length){tipX=arrows[arrows.length-1].x2;tipY=arrows[arrows.length-1].y2;}
+  document.getElementById('px').textContent=tipX.toFixed(3);
+  document.getElementById('py').textContent=tipY.toFixed(3);
+  document.getElementById('pz').textContent=zoom.toFixed(0);
+  document.getElementById('stepNum').textContent=animStep;
+  document.getElementById('stepMax').textContent=cfg.steps;
+}
+
+// ── Animation ──
+function togglePlay(){
+  playing=!playing;
+  const btn=document.getElementById('btnPlay');
+  if(playing){btn.textContent='⏸ Pause';btn.classList.add('active');lastStepTime=performance.now();animRaf=requestAnimationFrame(animLoop);}
+  else{btn.textContent='▶ Play';btn.classList.remove('active');cancelAnimationFrame(animRaf);}
+}
+function animLoop(now){
+  if(!playing)return;
+  if(now-lastStepTime>=1000/cfg.animSpeed){
+    if(animStep<cfg.steps){animStep++;draw();lastStepTime=now;}
+    else{playing=false;document.getElementById('btnPlay').textContent='▶ Play';document.getElementById('btnPlay').classList.remove('active');return;}
+  }
+  animRaf=requestAnimationFrame(animLoop);
+}
+function stepOnce(){if(animStep<cfg.steps){animStep++;draw();}}
+function resetAnim(){
+  playing=false;cancelAnimationFrame(animRaf);
+  document.getElementById('btnPlay').textContent='▶ Play';
+  document.getElementById('btnPlay').classList.remove('active');
+  animStep=0;draw();
+}
+
+function onStartChange(){
+  const x=parseFloat(document.getElementById('nStartX').value);
+  const y=parseFloat(document.getElementById('nStartY').value);
+  if(isFinite(x)&&isFinite(y)){startPos.x=x;startPos.y=y;pos.x=x;pos.y=y;resetAnim();}
+}
+
+// ── Controls ──
+function bindRange(id,valId,dec,xform,key,rebuild){
+  const el=document.getElementById(id),ve=valId?document.getElementById(valId):null;
+  el.addEventListener('input',()=>{
+    cfg[key]=xform(parseFloat(el.value));
+    if(ve) ve.textContent=key==='animSpeed'?cfg[key]+'/s':cfg[key].toFixed(dec);
+    saveCfg();
+    if(rebuild){fieldDirty=true;scheduleFieldBuild();}else draw();
+  });
+}
+bindRange('sSteps','vSteps',0,v=>Math.round(v),'steps',false);
+bindRange('sDelta','vDelta',2,v=>v/100,'delta',false);
+bindRange('sAnimSpeed','vAnimSpeed',0,v=>Math.round(v),'animSpeed',false);
+bindRange('sAW','vAW',1,v=>v/10,'arrowWidth',false);
+bindRange('sTip','vTip',0,v=>Math.round(v),'tipSize',false);
+bindRange('sFade','vFade',2,v=>v/100,'fadeSpeed',false);
+bindRange('sFRate','vFRate',0,v=>Math.round(v),'fieldRate',false);
+bindRange('sDensity','vDensity',2,v=>v/100,'density',true);
+bindRange('sFLen','vFLen',2,v=>v/100,'fieldLen',true);
+bindRange('sFOp','vFOp',2,v=>v/100,'fieldOpacity',true);
+bindRange('sFLW','vFLW',1,v=>v/10,'fieldLineWidth',true);
+bindRange('sStreamCount','vStreamCount',0,v=>Math.round(v),'streamCount',false);
+bindRange('sStreamSpeed','vStreamSpeed',3,v=>v/1000,'streamSpeed',false);
+bindRange('sGradOp','vGradOp',2,v=>v/100,'gradientOpacity',false);
+bindRange('sGradMotion','vGradMotion',2,v=>v/100,'gradientMotion',false);
+
+const toggleMap={
+  tNorm:'normalize',tField:'showField',tMagColor:'magColor',tFieldArrows:'fieldArrows',
+  tGrid:'showGrid',tAxes:'showAxes',tLabels:'showLabels',
+  tStream:'showStream',tGradient:'showGradient'
+};
+Object.entries(toggleMap).forEach(([id,key])=>{
+  document.getElementById(id).addEventListener('change',e=>{
+    cfg[key]=e.target.checked; saveCfg();
+    if(['magColor','fieldArrows','showField'].includes(key)){fieldDirty=true;scheduleFieldBuild();}else draw();
+  });
+});
+document.getElementById('cArrow').addEventListener('input',e=>{cfg.arrowColor=e.target.value;saveCfg();draw();});
+document.getElementById('cField').addEventListener('input',e=>{cfg.fieldColor=e.target.value;saveCfg();fieldDirty=true;scheduleFieldBuild();});
+
+// ── Apply saved cfg to UI ──
+function applyToUI(){
+  const setRange=(id,rawVal,factor)=>{const el=document.getElementById(id);if(el)el.value=Math.round(rawVal*factor);};
+  const setTog=(id,val)=>{const el=document.getElementById(id);if(el)el.checked=val;};
+  const setCol=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};
+
+  setRange('sSteps',cfg.steps,1);
+  setRange('sDelta',cfg.delta,100);
+  setRange('sAnimSpeed',cfg.animSpeed,1);
+  setRange('sAW',cfg.arrowWidth,10);
+  setRange('sTip',cfg.tipSize,1);
+  setRange('sFade',cfg.fadeSpeed,100);
+  setRange('sFRate',cfg.fieldRate,1);
+  setRange('sDensity',cfg.density,100);
+  setRange('sFLen',cfg.fieldLen,100);
+  setRange('sFOp',cfg.fieldOpacity,100);
+  setRange('sFLW',cfg.fieldLineWidth,10);
+  setRange('sStreamCount',cfg.streamCount,1);
+  setRange('sStreamSpeed',cfg.streamSpeed,1000);
+  setRange('sGradOp',cfg.gradientOpacity,100);
+  setRange('sGradMotion',cfg.gradientMotion,100);
+  setTog('tNorm',cfg.normalize);
+  setTog('tField',cfg.showField);
+  setTog('tMagColor',cfg.magColor);
+  setTog('tFieldArrows',cfg.fieldArrows);
+  setTog('tGrid',cfg.showGrid);
+  setTog('tAxes',cfg.showAxes);
+  setTog('tLabels',cfg.showLabels);
+  setTog('tStream',cfg.showStream);
+  setTog('tGradient',cfg.showGradient);
+  setCol('cArrow',cfg.arrowColor);
+  setCol('cField',cfg.fieldColor);
+
+  // update display values
+  document.getElementById('vSteps').textContent=cfg.steps;
+  document.getElementById('vDelta').textContent=cfg.delta.toFixed(2);
+  document.getElementById('vAnimSpeed').textContent=cfg.animSpeed+'/s';
+  document.getElementById('vAW').textContent=cfg.arrowWidth.toFixed(1);
+  document.getElementById('vTip').textContent=cfg.tipSize;
+  document.getElementById('vFade').textContent=cfg.fadeSpeed.toFixed(2);
+  document.getElementById('vFRate').textContent=cfg.fieldRate;
+  document.getElementById('vDensity').textContent=cfg.density.toFixed(2);
+  document.getElementById('vFLen').textContent=cfg.fieldLen.toFixed(2);
+  document.getElementById('vFOp').textContent=cfg.fieldOpacity.toFixed(2);
+  document.getElementById('vFLW').textContent=cfg.fieldLineWidth.toFixed(1);
+  document.getElementById('vStreamCount').textContent=cfg.streamCount;
+  document.getElementById('vStreamSpeed').textContent=cfg.streamSpeed.toFixed(3);
+  document.getElementById('vGradOp').textContent=cfg.gradientOpacity.toFixed(2);
+  document.getElementById('vGradMotion').textContent=cfg.gradientMotion.toFixed(2);
+
+  // restore equation
+  document.getElementById('eqInput').value=cfg.equation||'(-y/3,(x-y)/3)';
+}
+
+// ── Mouse ──
+function isDotHit(ox,oy){const sp=w2s(startPos.x,startPos.y);return Math.sqrt((ox-sp.sx)**2+(oy-sp.sy)**2)<16;}
+canvas.addEventListener('mousedown',e=>{
+  if(isDotHit(e.offsetX,e.offsetY)){draggingDot=true;}
+  else{panning=true;panStart={x:e.offsetX,y:e.offsetY};camStart={x:camX,y:camY};}
+});
+canvas.addEventListener('mousemove',e=>{
+  if(draggingDot){
+    const w=s2w(e.offsetX,e.offsetY);
+    startPos.x=w.wx;startPos.y=w.wy;pos.x=w.wx;pos.y=w.wy;
+    document.getElementById('nStartX').value=w.wx.toFixed(3);
+    document.getElementById('nStartY').value=w.wy.toFixed(3);
+    draw();
+  } else if(panning&&panStart){
+    camX=camStart.x+(e.offsetX-panStart.x);
+    camY=camStart.y+(e.offsetY-panStart.y);
+    fieldDirty=true;scheduleFieldBuild();
+  }
+  canvas.style.cursor=isDotHit(e.offsetX,e.offsetY)?'grab':(panning?'grabbing':'crosshair');
+});
+canvas.addEventListener('mouseup',()=>{draggingDot=false;panning=false;});
+canvas.addEventListener('mouseleave',()=>{draggingDot=false;panning=false;});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const factor=e.deltaY<0?1.12:0.89;
+  const before=s2w(e.offsetX,e.offsetY);
+  zoom=Math.max(15,Math.min(400,zoom*factor));
+  const after=w2s(before.wx,before.wy);
+  camX+=e.offsetX-after.sx;camY+=e.offsetY-after.sy;
+  fieldDirty=true;scheduleFieldBuild();
+},{passive:false});
+
+// ── Touch ──
+let touchDot=false,tPanStart=null,tCamStart=null;
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0],rect=canvas.getBoundingClientRect();
+  const ox=t.clientX-rect.left,oy=t.clientY-rect.top;
+  if(isDotHit(ox,oy)){touchDot=true;}else{tPanStart={x:ox,y:oy};tCamStart={x:camX,y:camY};}
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const t=e.touches[0],rect=canvas.getBoundingClientRect();
+  const ox=t.clientX-rect.left,oy=t.clientY-rect.top;
+  if(touchDot){
+    const w=s2w(ox,oy);startPos.x=w.wx;startPos.y=w.wy;
+    document.getElementById('nStartX').value=w.wx.toFixed(3);
+    document.getElementById('nStartY').value=w.wy.toFixed(3);
+    draw();
+  } else if(tPanStart){
+    camX=tCamStart.x+(ox-tPanStart.x);camY=tCamStart.y+(oy-tPanStart.y);
+    fieldDirty=true;scheduleFieldBuild();
+  }
+},{passive:false});
+canvas.addEventListener('touchend',()=>{touchDot=false;tPanStart=null;});
+
+// ── Resize ──
+function resize(){
+  const ws=document.querySelector('.workspace');
+  canvas.width=ws.offsetWidth;canvas.height=ws.offsetHeight;
+  fieldDirty=true;scheduleFieldBuild();
+  startStream();
+  if(cfg.showGradient){cancelAnimationFrame(gradRaf);gradRaf=requestAnimationFrame(tickGradient);}
+}
+window.addEventListener('resize',resize);
+
+// ── Init ──
+applyToUI();
+compileEq(cfg.equation || '(-y/3,(x-y)/3)');
+
+// start gradient loop
+gradRaf = requestAnimationFrame(tickGradient);
+
+resize();
+</script>
+</body>
+</html>
